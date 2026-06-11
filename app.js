@@ -277,16 +277,22 @@ const FavoriteLinksModule = {
   elements: {},
 
   init(links = []) {
-    this.links = links;
+    this.links = links.map((link) => ({
+      ...link,
+      showOnHomepage: typeof link.showOnHomepage === 'boolean' ? link.showOnHomepage : false
+    }));
     this.elements = {
       list: document.getElementById('links-list'),
       form: document.getElementById('add-link-form'),
       labelInput: document.getElementById('link-label'),
       urlInput: document.getElementById('link-url'),
-      trigger: document.getElementById('btn-my-links')
+      homepageCheckbox: document.getElementById('link-homepage'),
+      trigger: document.getElementById('btn-my-links'),
+      strip: document.getElementById('links-strip')
     };
 
     this.render();
+    this.renderStrip();
     this.bindEvents();
   },
 
@@ -304,6 +310,8 @@ const FavoriteLinksModule = {
   add() {
     const label = this.elements.labelInput.value.trim();
     let url = this.elements.urlInput.value.trim();
+    const showOnHomepage = this.elements.homepageCheckbox.checked;
+    
     if (!label || !url) return;
 
     if (!/^https?:\/\//i.test(url)) {
@@ -314,20 +322,24 @@ const FavoriteLinksModule = {
       id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       label,
       url,
+      showOnHomepage,
       createdAt: Date.now()
     };
 
     this.links.unshift(link);
     this.elements.labelInput.value = '';
     this.elements.urlInput.value = '';
+    this.elements.homepageCheckbox.checked = false;
     this.elements.labelInput.focus();
     this.render();
+    this.renderStrip();
     this.persist();
   },
 
   delete(id) {
     this.links = this.links.filter((l) => l.id !== id);
     this.render();
+    this.renderStrip();
     this.persist();
   },
 
@@ -336,6 +348,16 @@ const FavoriteLinksModule = {
       state.favoriteLinks = this.links;
       StateManager.save(state);
     });
+  },
+
+  toggleHomepage(id) {
+    const link = this.links.find((l) => l.id === id);
+    if (link) {
+      link.showOnHomepage = !link.showOnHomepage;
+      this.render();
+      this.renderStrip();
+      this.persist();
+    }
   },
 
   render() {
@@ -362,6 +384,14 @@ const FavoriteLinksModule = {
       anchor.textContent = link.label;
       anchor.title = link.url;
 
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = `link-toggle${link.showOnHomepage ? ' active' : ''}`;
+      toggleBtn.setAttribute('aria-label', `${link.showOnHomepage ? 'Remove from' : 'Add to'} home page`);
+      toggleBtn.setAttribute('title', link.showOnHomepage ? 'Remove from home page' : 'Add to home page');
+      toggleBtn.innerHTML = link.showOnHomepage ? '★' : '☆';
+      toggleBtn.addEventListener('click', () => this.toggleHomepage(link.id));
+
       const delBtn = document.createElement('button');
       delBtn.type = 'button';
       delBtn.className = 'link-delete';
@@ -370,8 +400,34 @@ const FavoriteLinksModule = {
       delBtn.addEventListener('click', () => this.delete(link.id));
 
       li.appendChild(anchor);
+      li.appendChild(toggleBtn);
       li.appendChild(delBtn);
       list.appendChild(li);
+    });
+  },
+
+  renderStrip() {
+    const { strip } = this.elements;
+    const homepageLinks = this.links.filter((l) => l.showOnHomepage);
+
+    strip.innerHTML = '';
+
+    if (homepageLinks.length === 0) {
+      strip.classList.remove('active');
+      return;
+    }
+
+    strip.classList.add('active');
+
+    homepageLinks.forEach((link) => {
+      const a = document.createElement('a');
+      a.className = 'strip-link';
+      a.href = link.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.title = link.url;
+      a.textContent = link.label;
+      strip.appendChild(a);
     });
   }
 };
@@ -432,7 +488,18 @@ const TodoModule = {
   delete(id) {
     this.todos = this.todos.filter((t) => t.id !== id);
     this.render();
+    this.renderStrip();
     this.persist();
+  },
+
+  toggleHomepage(id) {
+    const link = this.links.find((l) => l.id === id);
+    if (link) {
+      link.showOnHomepage = !link.showOnHomepage;
+      this.render();
+      this.renderStrip();
+      this.persist();
+    }
   },
 
   persist() {
